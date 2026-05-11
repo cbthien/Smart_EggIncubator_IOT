@@ -121,7 +121,7 @@ src/
 
 ---
 
-# 🔧 Main Services
+#  Main Services
 
 | Service          | Responsibility              |
 | ---------------- | --------------------------- |
@@ -147,7 +147,7 @@ src/
 
 ---
 
-# 📡 Telemetry Example
+#  Telemetry Example
 
 ```json
 {
