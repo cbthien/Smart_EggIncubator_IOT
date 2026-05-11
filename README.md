@@ -204,7 +204,7 @@ This project is open-source and available under the MIT License.
 
 ---
 
-# 👨‍💻 Author
+#  Author
 
 Developed by CaoThien
 
