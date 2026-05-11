@@ -1,0 +1,19 @@
+# Visual Studio
+.vs/
+*.VC.db
+*.VC.opendb
+*.ipch
+
+# Build folders
+Debug/
+Release/
+x64/
+x86/
+
+# Arduino / ESP32
+build/
+.pio/
+
+# Temporary
+*.log
+*.tmp
