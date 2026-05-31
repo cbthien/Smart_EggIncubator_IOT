@@ -1,10 +1,7 @@
 /******************************************************************
- Created with PROGRAMINO IDE for Arduino 
- Libraries   :
- Author      :
- Description :
-******************************************************************/
-
+ * Smart Egg Incubator - Application Context
+ * Shared state container accessible by all services
+ ******************************************************************/
 
 #ifndef APP_CONTEXT_H
 #define APP_CONTEXT_H

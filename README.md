@@ -383,6 +383,254 @@ SmartEggIncubator/
 
 ---
 
+## Integration Guide for Webapp and Mobile App
+
+This section is for the frontend/backend team building the dashboard, webapp, or mobile app.
+
+### MQTT Connection Info
+
+| Field | Value |
+|-------|-------|
+| Broker | `broker.hivemq.com` |
+| TCP Port | 1883 (for desktop/server apps) |
+| WebSocket Port | 8884 (WSS, for web browsers) |
+| WebSocket URL | `wss://broker.hivemq.com:8884/mqtt` |
+| Username | (none) |
+| Password | (none) |
+| Protocol | MQTT 3.1.1 |
+
+Important: Web browsers cannot use TCP port 1883. Use WebSocket (port 8884) for webapp.
+
+---
+
+### Webapp Integration (JavaScript / React / Vue)
+
+Install MQTT library:
+
+```bash
+npm install mqtt
+```
+
+Connect and receive telemetry:
+
+```javascript
+import mqtt from 'mqtt'
+
+// Connect via WebSocket (required for browsers)
+const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt')
+
+client.on('connect', () => {
+  console.log('Connected to MQTT broker')
+  
+  // Subscribe to receive data from ESP32
+  client.subscribe('egg_incubator/telemetry')
+  client.subscribe('egg_incubator/alarm')
+  client.subscribe('egg_incubator/status')
+})
+
+client.on('message', (topic, message) => {
+  const data = JSON.parse(message.toString())
+  
+  if (topic === 'egg_incubator/telemetry') {
+    // Update dashboard with telemetry data
+    console.log('Temperature:', data.temperature)
+    console.log('Humidity:', data.humidity)
+    console.log('Heater Left:', data.heater_left)
+    console.log('Fan RPM:', data.fan_left_rpm)
+    console.log('Incubation Day:', data.incubation_day)
+  }
+  
+  if (topic === 'egg_incubator/alarm') {
+    // Show alert/notification
+    console.log('ALARM:', data.alarm, 'Temp:', data.temperature)
+  }
+})
+
+// Send command to ESP32
+function sendCommand(cmd, value) {
+  const payload = value !== undefined 
+    ? JSON.stringify({ cmd, value }) 
+    : JSON.stringify({ cmd })
+  client.publish('egg_incubator/command', payload)
+}
+
+// Examples:
+sendCommand('set_temp', 37.8)
+sendCommand('set_fan_speed', 75)
+sendCommand('turn_tray')
+sendCommand('start_incubation')
+sendCommand('heater_off')
+sendCommand('reboot')
+```
+
+---
+
+### Mobile App Integration (React Native)
+
+Install:
+
+```bash
+npm install mqtt
+```
+
+Same code as webapp works in React Native. Use the WebSocket URL:
+
+```javascript
+import mqtt from 'mqtt'
+
+const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt')
+
+// Same subscribe/publish logic as webapp above
+```
+
+---
+
+### Mobile App Integration (Flutter / Dart)
+
+Install package:
+
+```yaml
+dependencies:
+  mqtt_client: ^10.0.0
+```
+
+```dart
+import 'package:mqtt_client/mqtt_client.dart';
+import 'package:mqtt_client/mqtt_browser_client.dart';
+
+final client = MqttBrowserClient('wss://broker.hivemq.com:8884/mqtt', 'flutter_app');
+
+await client.connect();
+
+// Subscribe
+client.subscribe('egg_incubator/telemetry', MqttQos.atMostOnce);
+
+// Listen
+client.updates!.listen((List<MqttReceivedMessage<MqttMessage>> messages) {
+  final payload = messages[0].payload as MqttPublishMessage;
+  final data = MqttPublishPayload.bytesToStringAsString(payload.payload.message);
+  // Parse JSON and update UI
+});
+
+// Publish command
+final builder = MqttClientPayloadBuilder();
+builder.addString('{"cmd": "set_temp", "value": 38.0}');
+client.publishMessage('egg_incubator/command', MqttQos.atMostOnce, builder.payload!);
+```
+
+---
+
+### Backend Integration (Node.js)
+
+If you need a backend to store history or send push notifications:
+
+```bash
+npm install mqtt
+```
+
+```javascript
+const mqtt = require('mqtt')
+
+// Backend uses TCP (not WebSocket)
+const client = mqtt.connect('mqtt://broker.hivemq.com:1883')
+
+client.on('connect', () => {
+  client.subscribe('egg_incubator/telemetry')
+  client.subscribe('egg_incubator/alarm')
+})
+
+client.on('message', (topic, message) => {
+  const data = JSON.parse(message.toString())
+  
+  if (topic === 'egg_incubator/telemetry') {
+    // Save to database (MongoDB, PostgreSQL, etc.)
+    saveToDatabase(data)
+  }
+  
+  if (topic === 'egg_incubator/alarm') {
+    // Send push notification (Firebase, Telegram, etc.)
+    sendNotification(data.alarm, data.temperature)
+  }
+})
+```
+
+---
+
+### Data Flow Diagram
+
+```
+ESP32 (Firmware)
+    |
+    | publish telemetry every 30s
+    | publish alarm on safety event
+    v
+[MQTT Broker: broker.hivemq.com]
+    |
+    |--- subscribe ---> Webapp (React/Vue) --- display dashboard
+    |--- subscribe ---> Mobile App (React Native/Flutter)
+    |--- subscribe ---> Backend (Node.js) --- save to DB, send notifications
+    |
+    <--- publish --- Webapp sends commands
+    <--- publish --- Mobile App sends commands
+    |
+    v
+ESP32 receives command and executes
+```
+
+---
+
+### Available Telemetry Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `temperature` | float | Current temperature (C) |
+| `humidity` | float | Current humidity (%) |
+| `sensor_ok` | bool | Sensor working |
+| `heater_left` | bool | Left heater ON/OFF |
+| `heater_right` | bool | Right heater ON/OFF |
+| `fan_left_rpm` | int | Left fan RPM |
+| `fan_right_rpm` | int | Right fan RPM |
+| `fan_left_speed` | int | Left fan PWM (0-255) |
+| `fan_right_speed` | int | Right fan PWM (0-255) |
+| `fan_left_ok` | bool | Left fan healthy |
+| `fan_right_ok` | bool | Right fan healthy |
+| `fan_check_enabled` | bool | Fan stall check active |
+| `tray_position` | string | LEFT / RIGHT / MOVING / ERROR / UNKNOWN |
+| `tray_turning` | bool | Motor currently running |
+| `auto_turn_enabled` | bool | Auto-turn active |
+| `incubation_day` | int | Current incubation day (0 = not started) |
+| `incubation_active` | bool | Incubation counter running |
+| `wifi` | bool | WiFi connected |
+| `mqtt` | bool | MQTT connected |
+| `safety` | string | OK / OVER_TEMP / SENSOR_FAIL / FAN_STALL / MOTOR_TIMEOUT |
+| `error` | string | Error code or "NONE" |
+| `uptime_s` | int | Seconds since boot |
+| `target_temp` | float | Target temperature setting |
+| `fan_speed_set` | int | Fan speed setting (0-255) |
+
+---
+
+### Available Commands
+
+| Command | Payload | Description |
+|---------|---------|-------------|
+| `set_temp` | `{"cmd": "set_temp", "value": 37.8}` | Set target temperature (30-40) |
+| `set_fan_speed` | `{"cmd": "set_fan_speed", "value": 75}` | Set fan speed (0-100%) |
+| `turn_tray` | `{"cmd": "turn_tray"}` | Manual tray turn |
+| `stop_auto_turn` | `{"cmd": "stop_auto_turn"}` | Stop automatic turning |
+| `start_auto_turn` | `{"cmd": "start_auto_turn"}` | Resume automatic turning |
+| `heater_off` | `{"cmd": "heater_off"}` | Force heater OFF |
+| `heater_auto` | `{"cmd": "heater_auto"}` | Set heater to AUTO mode |
+| `start_incubation` | `{"cmd": "start_incubation"}` | Start day counter |
+| `reset_incubation` | `{"cmd": "reset_incubation"}` | Reset day counter |
+| `disable_fan_check` | `{"cmd": "disable_fan_check"}` | Disable fan stall detection |
+| `enable_fan_check` | `{"cmd": "enable_fan_check"}` | Enable fan stall detection |
+| `reset_wifi` | `{"cmd": "reset_wifi"}` | Clear WiFi and reboot |
+| `reboot` | `{"cmd": "reboot"}` | Restart ESP32 |
+
+---
+
+
 ## License
 
 This project is open-source and available under the MIT License.

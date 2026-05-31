@@ -1,3 +1,8 @@
+/******************************************************************
+ * Smart Egg Incubator - Storage Service
+ * Persistent settings storage using ESP32 NVS (Preferences)
+ ******************************************************************/
+
 #ifndef STORAGE_SERVICE_H
 #define STORAGE_SERVICE_H
 
