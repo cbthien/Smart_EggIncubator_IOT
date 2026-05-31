@@ -357,14 +357,28 @@ SmartEggIncubator/
 | Board | ESP32-S3 Dev Module |
 | ESP32 Core | 3.3.8 |
 
+### ESP32 Arduino Core
+
+| Field | Value |
+|-------|-------|
+| Package | esp32 by Espressif Systems |
+| Version | 3.3.8 |
+| GitHub | https://github.com/espressif/arduino-esp32 |
+| Board Manager URL | https://espressif.github.io/arduino-esp32/package_esp32_index.json |
+| Install path | `%LOCALAPPDATA%\arduino15\packages\esp32\hardware\esp32\3.3.8` |
+
+This is the official ESP32 Arduino Core maintained by Espressif (the chip manufacturer).
+
 ### Required Libraries
 
-| Library | Version | Purpose |
-|---------|---------|---------|
-| Adafruit SHT31 | 2.2.2 | Temperature/humidity sensor |
-| ArduinoJson | 7.4.3 | JSON serialization |
-| PubSubClient | 2.8.0 | MQTT client |
-| WiFiManager | 2.0.17 | WiFi provisioning |
+| Library | Version | Purpose | GitHub |
+|---------|---------|---------|--------|
+| Adafruit SHT31 | 2.2.2 | Temperature/humidity sensor (SHT30/SHT31) | https://github.com/adafruit/Adafruit_SHT31 |
+| ArduinoJson | 7.4.3 | JSON serialization | https://github.com/bblanchon/ArduinoJson/tree/7.x |
+| PubSubClient | 2.8.0 | MQTT client | https://github.com/knolleary/pubsubclient |
+| WiFiManager | 2.0.17 | WiFi provisioning | https://github.com/tzapu/WiFiManager |
+
+Note: SHT30 and SHT31 use the same library (Adafruit_SHT31). They are the same sensor family (Sensirion SHT3x) with identical I2C protocol.
 
 ---
 
@@ -629,7 +643,6 @@ ESP32 receives command and executes
 | `reboot` | `{"cmd": "reboot"}` | Restart ESP32 |
 
 ---
-
 
 ## License
 
