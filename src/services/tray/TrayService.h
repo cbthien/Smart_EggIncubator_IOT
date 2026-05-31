@@ -1,3 +1,9 @@
+/******************************************************************
+ * Smart Egg Incubator - Tray Service
+ * DTY50 220VAC motor control via 1 relay + 2 limit switches
+ * Features: debounce, auto-home on boot, timeout protection
+ ******************************************************************/
+
 #ifndef TRAY_SERVICE_H
 #define TRAY_SERVICE_H
 
@@ -12,24 +18,29 @@ public:
     void begin(AppContext* context);
     void loop();
 
-    void detectPosition();
-    void homeIfNeeded();
     void startTurn();
     void stopMotor();
+    void detectPosition();
+    void homeIfNeeded();
 
 private:
     AppContext* ctx;
     unsigned long motorStartMs;
     unsigned long lastTurnMs;
+    bool waitingForFirstTurn;
 
-    bool leftLimitActive();
-    bool rightLimitActive();
+    // Debounce
+    static const unsigned long DEBOUNCE_MS = 50;
+    unsigned long leftDebounceMs;
+    unsigned long rightDebounceMs;
+    bool leftStable;
+    bool rightStable;
 
-    void moveLeft();
-    void moveRight();
+    bool readLeftLimit();
+    bool readRightLimit();
     void updateLimitState();
-    void checkMotorTimeout();
     void handleMoving();
+    void checkMotorTimeout();
     void scheduleAutoTurn();
 };
 
