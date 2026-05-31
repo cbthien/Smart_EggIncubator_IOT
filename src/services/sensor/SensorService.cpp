@@ -1,5 +1,9 @@
-#include "SensorService.h"
+/******************************************************************
+ * Smart Egg Incubator - Sensor Service Implementation
+ * SHT30 I2C temperature/humidity sensor
+ ******************************************************************/
 
+#include "SensorService.h"
 #include "../../config/Pins.h"
 #include "../../config/Config.h"
 
@@ -17,11 +21,11 @@ void SensorService::begin(AppContext* context)
 
     Serial.println("[Sensor] Init SHT30...");
 
-    if (!sht30.begin(0x44))
+    if (!sht30.begin(SENSOR_I2C_ADDRESS))
     {
         ctx->state.sensorOk = false;
         ctx->state.errorCode = "SHT30_NOT_FOUND";
-        Serial.println("[Sensor] SHT30 NOT FOUND");
+        Serial.println("[Sensor] ERROR: SHT30 NOT FOUND!");
         return;
     }
 
@@ -33,8 +37,7 @@ void SensorService::begin(AppContext* context)
 
 void SensorService::loop()
 {
-    if (ctx == nullptr)
-        return;
+    if (ctx == nullptr) return;
 
     unsigned long now = millis();
 
@@ -54,7 +57,7 @@ void SensorService::readSensor()
     {
         ctx->state.sensorOk = false;
         ctx->state.errorCode = "SHT30_READ_ERROR";
-        Serial.println("[Sensor] Read Error");
+        Serial.println("[Sensor] ERROR: Read failed (NaN)");
         return;
     }
 
@@ -62,9 +65,16 @@ void SensorService::readSensor()
     ctx->state.humidity = h;
     ctx->state.sensorOk = true;
 
-    Serial.print("[Sensor] Temp: ");
-    Serial.print(t);
-    Serial.print(" C | Humidity: ");
-    Serial.print(h);
-    Serial.println(" %");
+    // Only clear error if it was sensor-related
+    if (ctx->state.errorCode == "SHT30_READ_ERROR" || 
+        ctx->state.errorCode == "SHT30_NOT_FOUND")
+    {
+        ctx->state.errorCode = "NONE";
+    }
+}
+
+bool SensorService::isOk() const
+{
+    if (ctx == nullptr) return false;
+    return ctx->state.sensorOk;
 }
