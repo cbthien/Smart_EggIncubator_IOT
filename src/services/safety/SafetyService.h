@@ -1,8 +1,6 @@
 /******************************************************************
  * Smart Egg Incubator - Safety Service
- * Highest priority: overrides all other controls
- * Monitors: over-temp, sensor fail, fan stall, motor timeout
- * Publishes alarms via MQTT for webapp notification
+ * Debug/demo version
  ******************************************************************/
 
 #ifndef SAFETY_SERVICE_H
@@ -33,7 +31,12 @@ private:
     MqttService* mqttService;
 
     unsigned long bootTimeMs;
-    static const unsigned long FAN_GRACE_PERIOD_MS = 15000;  // 15s grace after boot
+    uint8_t sensorFailCount;
+    uint8_t fanFailCount;
+
+    static const unsigned long FAN_GRACE_PERIOD_MS = 15000;
+    static const uint8_t SENSOR_FAIL_LIMIT = 3;
+    static const uint8_t FAN_FAIL_LIMIT = 3;
 
     void checkSensorFail();
     void checkOverTemp();

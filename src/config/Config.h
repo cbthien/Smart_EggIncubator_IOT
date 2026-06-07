@@ -29,13 +29,13 @@
 #define DEFAULT_FAN_SPEED           255     // Default speed (0-255, 255=100%)
 #define FAN_TACH_PULSES_PER_REV     2       // Typical: 2 pulses per revolution
 #define FAN_RPM_READ_INTERVAL_MS    1000    // Read RPM every 1s
-#define FAN_STALL_THRESHOLD_RPM     100     // Below this = fan stalled
+#define FAN_STALL_THRESHOLD_RPM     300     // Below this = fan stalled
 
 // ============================================================
 // TRAY - Motor Control
 // ============================================================
 #define DEFAULT_TURN_INTERVAL_MS    (2UL * 60UL * 60UL * 1000UL)  // 2 hours
-#define DEFAULT_MOTOR_TIMEOUT_MS    60000   // 60s timeout (safety)
+#define DEFAULT_MOTOR_TIMEOUT_MS    45000   // 45s timeout (safety)
 
 // ============================================================
 // TELEMETRY

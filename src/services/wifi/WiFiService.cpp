@@ -33,7 +33,7 @@ void WiFiService::begin(AppContext* context)
     // After configuring new WiFi, comment it back and re-upload.
     // You can also send MQTT command {"cmd": "reset_wifi"} to reset remotely.
     
-    // wifiManager.resetSettings();  //(bỏ comment dòng này để set wifi mới)
+    wifiManager.resetSettings();  //(bỏ comment dòng này để set wifi mới)
 
     // Configure WiFiManager
     wifiManager.setConfigPortalTimeout(WIFI_CONNECT_TIMEOUT_S);  // 120s timeout

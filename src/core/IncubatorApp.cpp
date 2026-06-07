@@ -1,7 +1,6 @@
 /******************************************************************
  * Smart Egg Incubator - Main Application Implementation
- * Boot sequence, service coordination, command handling
- * OTA update, incubation day counter
+ * Debug/demo version
  ******************************************************************/
 
 #include "IncubatorApp.h"
@@ -9,7 +8,6 @@
 #include "../config/Config.h"
 #include <ArduinoJson.h>
 
-// Static instance for command callback
 IncubatorApp* IncubatorApp::instance = nullptr;
 
 IncubatorApp::IncubatorApp()
@@ -19,77 +17,86 @@ IncubatorApp::IncubatorApp()
 
 void IncubatorApp::begin()
 {
-    // Step 1: Boot safety - force all relays OFF immediately
-    bootSafety();
+    Serial.begin(115200);
+    delay(500);
 
+    bootSafety();
     printBootInfo();
 
-    // Step 2: Load settings from NVS
     storage.begin(&context);
     storage.loadSettings();
 
-    // Step 3: Initialize sensor
     sensor.begin(&context);
 
-    // Step 4: Initialize actuators
     heater.begin(&context);
     fan.begin(&context);
     tray.begin(&context);
 
-    // Step 5: Initialize safety (needs references to actuators + mqtt)
-    // Note: mqtt not connected yet, but pointer is valid
     safety.begin(&context, &heater, &fan, &tray, &mqtt);
 
-    // Step 6: Connect WiFi (may block for AP portal)
     wifi.begin(&context);
 
-    // Step 7: Setup OTA (requires WiFi)
     if (wifi.isConnected())
     {
         setupOTA();
     }
+    else
+    {
+        Serial.println("[App] WiFi not connected yet, OTA not started");
+    }
 
-    // Step 8: Connect MQTT
     mqtt.begin(&context);
     mqtt.setCommandCallback(commandCallback);
 
-    // Step 9: Initialize telemetry
     telemetry.begin(&context, &mqtt);
 
     Serial.println();
     Serial.println("================================");
-    Serial.println(" System Ready!");
+    Serial.println(" System Ready - DEBUG LOG MODE");
     Serial.println("================================");
     Serial.println();
 }
 
 void IncubatorApp::loop()
 {
-    // OTA handle (check for firmware updates)
-    ArduinoOTA.handle();
+    static unsigned long lastHeartbeatMs = 0;
 
-    // Read sensors
+    if (wifi.isConnected())
+    {
+        ArduinoOTA.handle();
+    }
+
     sensor.loop();
-
-    // Update incubation day counter
     updateIncubationDay();
-
-    // Safety check (highest priority - runs before actuators)
     safety.loop();
 
-    // Actuator control (only if safety allows)
-    heater.loop();
+    if (safety.isSafe())
+    {
+        heater.loop();
+    }
+    else
+    {
+        heater.forceOff();
+    }
+
     fan.loop();
     tray.loop();
 
-    // Network
     wifi.loop();
     mqtt.loop();
-
-    // Telemetry (Serial + MQTT)
     telemetry.loop();
 
-    // Small delay to prevent watchdog issues
+    if (millis() - lastHeartbeatMs >= 5000)
+    {
+        lastHeartbeatMs = millis();
+        Serial.print("[App] Heartbeat uptime="); Serial.print(millis() / 1000);
+        Serial.print("s sensor="); Serial.print(context.state.sensorOk ? "OK" : "FAIL");
+        Serial.print(" safety="); Serial.print(context.state.safety);
+        Serial.print(" error="); Serial.print(context.state.errorCode);
+        Serial.print(" heater="); Serial.print(context.state.heaterLeftOn || context.state.heaterRightOn ? "ON" : "OFF");
+        Serial.print(" trayTurning="); Serial.println(context.state.trayTurning ? "YES" : "NO");
+    }
+
     delay(10);
 }
 
@@ -97,11 +104,11 @@ void IncubatorApp::bootSafety()
 {
     Serial.println("[Boot] Forcing all relays OFF...");
 
-    // Configure all relay pins as OUTPUT and force OFF
     for (int i = 0; i < NUM_RELAY_PINS; i++)
     {
         pinMode(ALL_RELAY_PINS[i], OUTPUT);
         digitalWrite(ALL_RELAY_PINS[i], RELAY_OFF);
+        Serial.print("[Boot] Relay GPIO"); Serial.print(ALL_RELAY_PINS[i]); Serial.println(" = OFF");
     }
 
     Serial.println("[Boot] All relays OFF - safe state confirmed");
@@ -111,15 +118,11 @@ void IncubatorApp::printBootInfo()
 {
     Serial.println();
     Serial.println("================================");
-    Serial.println(" Smart Egg Incubator v2.1");
+    Serial.println(" Smart Egg Incubator DEBUG");
     Serial.println(" ESP32-S3 IoT Controller");
-    Serial.println(" Visual Micro + Arduino");
     Serial.println("================================");
-    Serial.println();
-    Serial.println("[Boot] System starting...");
-    Serial.print("[Boot] Free heap: ");
-    Serial.print(ESP.getFreeHeap());
-    Serial.println(" bytes");
+    Serial.print("[Boot] Free heap: "); Serial.print(ESP.getFreeHeap()); Serial.println(" bytes");
+    Serial.print("[Boot] Chip MAC: "); Serial.println((uint32_t)ESP.getEfuseMac(), HEX);
 }
 
 void IncubatorApp::setupOTA()
@@ -127,18 +130,11 @@ void IncubatorApp::setupOTA()
     ArduinoOTA.setHostname(OTA_HOSTNAME);
     ArduinoOTA.setPassword(OTA_PASSWORD);
 
-    ArduinoOTA.onStart([]() {
-        Serial.println("[OTA] Update starting...");
-    });
-
-    ArduinoOTA.onEnd([]() {
-        Serial.println("[OTA] Update complete!");
-    });
-
+    ArduinoOTA.onStart([]() { Serial.println("[OTA] Update starting..."); });
+    ArduinoOTA.onEnd([]() { Serial.println("[OTA] Update complete!"); });
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
         Serial.printf("[OTA] Progress: %u%%\r", (progress / (total / 100)));
     });
-
     ArduinoOTA.onError([](ota_error_t error) {
         Serial.printf("[OTA] Error[%u]: ", error);
         if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
@@ -154,7 +150,7 @@ void IncubatorApp::setupOTA()
 
 void IncubatorApp::updateIncubationDay()
 {
-    if (!context.settings.incubationActive) 
+    if (!context.settings.incubationActive)
     {
         context.state.incubationDay = 0;
         return;
@@ -167,15 +163,13 @@ void IncubatorApp::updateIncubationDay()
     }
 
     unsigned long elapsed = millis() - context.settings.incubationStartMs;
-    uint16_t newDay = (uint16_t)(elapsed / MS_PER_DAY) + 1;  // Day 1 = first day
+    uint16_t newDay = (uint16_t)(elapsed / MS_PER_DAY) + 1;
 
-    // Save to NVS when day changes (survives reboot)
     if (newDay != context.state.incubationDay && newDay > context.state.incubationDay)
     {
         context.state.incubationDay = newDay;
         storage.saveSettings();
-        Serial.print("[Incubation] Day changed to: ");
-        Serial.println(newDay);
+        Serial.print("[Incubation] Day changed to: "); Serial.println(newDay);
     }
     else
     {
@@ -183,7 +177,6 @@ void IncubatorApp::updateIncubationDay()
     }
 }
 
-// Static callback bridge
 void IncubatorApp::commandCallback(const char* topic, const char* payload)
 {
     if (instance != nullptr)
@@ -194,16 +187,15 @@ void IncubatorApp::commandCallback(const char* topic, const char* payload)
 
 void IncubatorApp::handleCommand(const char* topic, const char* payload)
 {
-    Serial.print("[Command] Processing: ");
-    Serial.println(payload);
+    Serial.print("[Command] Topic: "); Serial.println(topic);
+    Serial.print("[Command] Payload: "); Serial.println(payload);
 
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, payload);
 
     if (error)
     {
-        Serial.print("[Command] JSON parse error: ");
-        Serial.println(error.c_str());
+        Serial.print("[Command] JSON parse error: "); Serial.println(error.c_str());
         return;
     }
 
@@ -214,7 +206,6 @@ void IncubatorApp::handleCommand(const char* topic, const char* payload)
         return;
     }
 
-    // === Temperature commands ===
     if (strcmp(cmd, "set_temp") == 0)
     {
         float value = doc["value"] | 37.5f;
@@ -222,11 +213,10 @@ void IncubatorApp::handleCommand(const char* topic, const char* payload)
         {
             context.settings.targetTemp = value;
             storage.saveSettings();
-            Serial.print("[Command] Target temp set to: ");
-            Serial.println(value);
+            Serial.print("[Command] Target temp set to: "); Serial.println(value);
         }
+        else Serial.println("[Command] set_temp rejected: range must be 30-40");
     }
-    // === Fan commands ===
     else if (strcmp(cmd, "set_fan_speed") == 0)
     {
         int value = doc["value"] | 100;
@@ -236,10 +226,9 @@ void IncubatorApp::handleCommand(const char* topic, const char* payload)
             context.settings.fanSpeed = speed;
             fan.setSpeed(speed);
             storage.saveSettings();
-            Serial.print("[Command] Fan speed set to: ");
-            Serial.print(value);
-            Serial.println("%");
+            Serial.print("[Command] Fan speed set to: "); Serial.print(value); Serial.println("%");
         }
+        else Serial.println("[Command] set_fan_speed rejected: range must be 0-100");
     }
     else if (strcmp(cmd, "disable_fan_check") == 0)
     {
@@ -253,7 +242,6 @@ void IncubatorApp::handleCommand(const char* topic, const char* payload)
         storage.saveSettings();
         Serial.println("[Command] Fan stall check ENABLED");
     }
-    // === Tray commands ===
     else if (strcmp(cmd, "turn_tray") == 0)
     {
         tray.startTurn();
@@ -271,19 +259,19 @@ void IncubatorApp::handleCommand(const char* topic, const char* payload)
         storage.saveSettings();
         Serial.println("[Command] Auto-turn STARTED");
     }
-    // === Heater commands ===
     else if (strcmp(cmd, "heater_off") == 0)
     {
         context.settings.heaterMode = HEATER_MANUAL_OFF;
         heater.forceOff();
+        storage.saveSettings();
         Serial.println("[Command] Heater forced OFF");
     }
     else if (strcmp(cmd, "heater_auto") == 0)
     {
         context.settings.heaterMode = HEATER_AUTO;
+        storage.saveSettings();
         Serial.println("[Command] Heater set to AUTO");
     }
-    // === Incubation commands ===
     else if (strcmp(cmd, "start_incubation") == 0)
     {
         context.settings.incubationActive = true;
@@ -300,7 +288,6 @@ void IncubatorApp::handleCommand(const char* topic, const char* payload)
         storage.saveSettings();
         Serial.println("[Command] Incubation RESET");
     }
-    // === System commands ===
     else if (strcmp(cmd, "reset_wifi") == 0)
     {
         Serial.println("[Command] Resetting WiFi credentials...");
@@ -314,7 +301,6 @@ void IncubatorApp::handleCommand(const char* topic, const char* payload)
     }
     else
     {
-        Serial.print("[Command] Unknown command: ");
-        Serial.println(cmd);
+        Serial.print("[Command] Unknown command: "); Serial.println(cmd);
     }
 }

@@ -28,8 +28,8 @@ private:
     unsigned long lastStateChangeMs;
     bool currentState;
 
-    static const unsigned long MIN_ON_TIME_MS = 30000;   // 30s minimum ON
-    static const unsigned long MIN_OFF_TIME_MS = 10000;  // 10s minimum OFF
+    static const unsigned long MIN_ON_TIME_MS = 10000;   // 30s minimum ON
+    static const unsigned long MIN_OFF_TIME_MS = 5000;  // 10s minimum OFF
 };
 
 #endif

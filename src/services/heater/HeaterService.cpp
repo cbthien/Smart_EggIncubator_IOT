@@ -27,6 +27,8 @@ void HeaterService::begin(AppContext* context)
     forceOff();
 
     Serial.println("[Heater] Init OK - 2 channels, LOW trigger, anti-chatter");
+    Serial.print("[Heater] Relay L/R GPIO: "); Serial.print(PIN_RELAY_HEATER_LEFT); Serial.print(" / "); Serial.println(PIN_RELAY_HEATER_RIGHT);
+    Serial.print("[Heater] Target/Hys/Max: "); Serial.print(ctx->settings.targetTemp); Serial.print(" / "); Serial.print(ctx->settings.hysteresis); Serial.print(" / "); Serial.println(ctx->settings.maxTemp);
 }
 
 void HeaterService::loop()
@@ -36,6 +38,12 @@ void HeaterService::loop()
     // If sensor is not OK, heaters must be OFF (safety handles this too)
     if (!ctx->state.sensorOk)
     {
+        static unsigned long lastSensorFailLogMs = 0;
+        if (millis() - lastSensorFailLogMs >= 3000)
+        {
+            lastSensorFailLogMs = millis();
+            Serial.println("[Heater] Blocked: sensor not OK");
+        }
         forceOff();
         return;
     }
@@ -43,11 +51,13 @@ void HeaterService::loop()
     // Manual mode: don't auto-control
     if (ctx->settings.heaterMode == HEATER_MANUAL_ON)
     {
+        Serial.println("[Heater] Manual ON requested");
         setHeaters(true);
         return;
     }
     else if (ctx->settings.heaterMode == HEATER_MANUAL_OFF)
     {
+        Serial.println("[Heater] Manual OFF requested");
         setHeaters(false);
         return;
     }
@@ -77,6 +87,7 @@ void HeaterService::loop()
         // Want to turn ON, currently OFF
         if (elapsed >= MIN_OFF_TIME_MS)
         {
+            Serial.print("[Heater] AUTO ON: temp="); Serial.print(temp); Serial.print(" target="); Serial.println(target);
             setHeaters(true);
         }
     }
@@ -85,6 +96,7 @@ void HeaterService::loop()
         // Want to turn OFF, currently ON
         if (elapsed >= MIN_ON_TIME_MS)
         {
+            Serial.print("[Heater] AUTO OFF: temp="); Serial.print(temp); Serial.print(" target="); Serial.println(target);
             setHeaters(false);
         }
     }
@@ -107,6 +119,16 @@ void HeaterService::setHeaters(bool state)
 
     digitalWrite(PIN_RELAY_HEATER_LEFT, state ? RELAY_ON : RELAY_OFF);
     digitalWrite(PIN_RELAY_HEATER_RIGHT, state ? RELAY_ON : RELAY_OFF);
+
+    static bool lastLoggedState = false;
+    static bool firstLog = true;
+    if (firstLog || lastLoggedState != state)
+    {
+        firstLog = false;
+        lastLoggedState = state;
+        Serial.print("[Heater] Relay state changed: ");
+        Serial.println(state ? "ON" : "OFF");
+    }
 }
 
 void HeaterService::forceOff()

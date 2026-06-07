@@ -28,6 +28,9 @@ void FanService::begin(AppContext* context)
     setSpeed(ctx->settings.fanSpeed);
 
     Serial.println("[Fan] Init OK - 2x PWM + Tach");
+    Serial.print("[Fan] PWM L/R GPIO: "); Serial.print(PIN_FAN_LEFT_PWM); Serial.print(" / "); Serial.println(PIN_FAN_RIGHT_PWM);
+    Serial.print("[Fan] Tach L/R GPIO: "); Serial.print(PIN_FAN_LEFT_TACH); Serial.print(" / "); Serial.println(PIN_FAN_RIGHT_TACH);
+    Serial.print("[Fan] Initial speed duty: "); Serial.println(ctx->settings.fanSpeed);
 }
 
 void FanService::loop()
@@ -76,6 +79,15 @@ void FanService::setSpeed(uint8_t speed)
 
     ledcWrite(PIN_FAN_LEFT_PWM, speed);
     ledcWrite(PIN_FAN_RIGHT_PWM, speed);
+
+    static uint8_t lastLoggedSpeed = 255;
+    static bool firstSpeedLog = true;
+    if (firstSpeedLog || lastLoggedSpeed != speed)
+    {
+        firstSpeedLog = false;
+        lastLoggedSpeed = speed;
+        Serial.print("[Fan] Speed duty set: "); Serial.println(speed);
+    }
 }
 
 void FanService::setSpeedPercent(uint8_t pct)
@@ -110,6 +122,11 @@ void FanService::readRpm()
     {
         ctx->state.fanLeftRpm = leftRpm;
         ctx->state.fanRightRpm = rightRpm;
+
+        Serial.print("[Fan] RPM L/R = ");
+        Serial.print(leftRpm);
+        Serial.print(" / ");
+        Serial.println(rightRpm);
     }
 }
 
@@ -134,6 +151,22 @@ void FanService::checkFanHealth()
     else
     {
         ctx->state.fanRightOk = true;
+    }
+
+    static bool lastLeftOk = true;
+    static bool lastRightOk = true;
+    if (ctx->state.fanLeftOk != lastLeftOk || ctx->state.fanRightOk != lastRightOk)
+    {
+        lastLeftOk = ctx->state.fanLeftOk;
+        lastRightOk = ctx->state.fanRightOk;
+        Serial.print("[Fan] Health changed L/R = ");
+        Serial.print(ctx->state.fanLeftOk ? "OK" : "FAIL");
+        Serial.print(" / ");
+        Serial.println(ctx->state.fanRightOk ? "OK" : "FAIL");
+        if (!ctx->state.fanLeftOk || !ctx->state.fanRightOk)
+        {
+            Serial.println("[Fan] If RPM=0, check tach wire, common GND, and tach pull-up to 3.3V only");
+        }
     }
 }
 
